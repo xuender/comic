@@ -7,18 +7,13 @@
 package cmd
 
 import (
-	"fyne.io/fyne/v2/app"
-	"github.com/xuender/comic/ui"
+	"github.com/xuender/comic/app"
 )
 
 // Injectors from wire.go:
 
-func InitApp() *ui.App {
-	fyneApp := app.New()
-	image := ui.NewImage()
-	toolbar := ui.NewToolbar()
-	mainMenu := ui.NewMenu()
-	window := ui.NewMain(fyneApp, image, toolbar, mainMenu)
-	uiApp := ui.NewApp(fyneApp, window)
-	return uiApp
+func InitApp() *app.App {
+	cache := app.NewCache()
+	appApp := app.NewApp(cache)
+	return appApp
 }

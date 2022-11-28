@@ -4,19 +4,14 @@
 package cmd
 
 import (
-	"fyne.io/fyne/v2/app"
 	"github.com/google/wire"
-	"github.com/xuender/comic/ui"
+	"github.com/xuender/comic/app"
 )
 
-func InitApp() *ui.App {
+func InitApp() *app.App {
 	wire.Build(
-		app.New,
-		ui.NewApp,
-		ui.NewMain,
-		ui.NewImage,
-		ui.NewToolbar,
-		ui.NewMenu,
+		app.NewApp,
+		app.NewCache,
 	)
-	return &ui.App{}
+	return &app.App{}
 }
