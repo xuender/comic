@@ -23,6 +23,7 @@ type App struct {
 	img    *canvas.Image
 	cache  *Cache
 	files  *Files
+	help   dialog.Dialog
 }
 
 func NewApp(
@@ -54,7 +55,7 @@ func NewApp(
 		widget.NewToolbarAction(theme.ZoomInIcon(), app.zoomIn),
 		widget.NewToolbarAction(theme.ZoomOutIcon(), app.zoomOut),
 		widget.NewToolbarSpacer(),
-		widget.NewToolbarAction(theme.HelpIcon(), app.help),
+		widget.NewToolbarAction(theme.HelpIcon(), app.showHelp),
 	)
 	border := container.NewBorder(toolbar, nil, nil, nil, scroll)
 	// nolint: gomnd
@@ -63,6 +64,7 @@ func NewApp(
 	main.CenterOnScreen()
 
 	app.border = border
+	app.help = app.createHelp()
 
 	return app
 }
@@ -86,8 +88,8 @@ func (p *App) init() {
 		fyne.KeyEnd:      p.end,
 		fyne.KeyW:        p.width,
 		fyne.KeyH:        p.height,
-		fyne.KeyF1:       p.help,
-		fyne.KeyF10:      p.help,
+		fyne.KeyF1:       p.showHelp,
+		fyne.KeyF10:      p.showHelp,
 	}
 
 	p.main.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
@@ -138,7 +140,7 @@ func (p *App) show() {
 	p.main.SetTitle(path)
 }
 
-func (p *App) help() {
+func (p *App) createHelp() dialog.Dialog {
 	white := color.White
 	grey := color.Gray16{0x8888}
 	url, _ := url.Parse("https://github.com/xuender/comic")
@@ -162,7 +164,11 @@ func (p *App) help() {
 		widget.NewHyperlink("xuender/comic", url),
 	)
 
-	dialog.ShowCustom("Help", "Close", grid, p.main)
+	return dialog.NewCustom("Help", "Close", grid, p.main)
+}
+
+func (p *App) showHelp() {
+	p.help.Show()
 }
 
 func (p *App) next() {

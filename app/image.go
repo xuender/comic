@@ -3,9 +3,6 @@ package app
 import (
 	"bytes"
 	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"log"
 	"os"
 
