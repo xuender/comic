@@ -1,9 +1,8 @@
 package app
 
 import (
-	"bytes"
-	"encoding/gob"
 	"log"
+	"os"
 
 	"fyne.io/fyne/v2/canvas"
 	"github.com/xujiajun/nutsdb"
@@ -17,7 +16,7 @@ func NewCache() *Cache {
 	options := nutsdb.DefaultOptions
 	options.SyncEnable = false
 
-	db, err := nutsdb.Open(
+	cache, err := nutsdb.Open(
 		options,
 		nutsdb.WithDir("/tmp/comic"),
 	)
@@ -25,7 +24,7 @@ func NewCache() *Cache {
 		log.Fatal(err)
 	}
 
-	return &Cache{db: db}
+	return &Cache{db: cache}
 }
 
 func (p *Cache) Close() {
@@ -37,14 +36,11 @@ func (p *Cache) Get(path string) []byte {
 
 	key := []byte(path)
 
-	p.db.View(func(tx *nutsdb.Tx) error {
-		if entry, err := tx.Get("", key); err != nil {
-			return err
-		} else {
-			res = entry.Value
+	_ = p.db.View(func(tx *nutsdb.Tx) error {
+		entry, err := tx.Get("", key)
+		res = entry.Value
 
-			return nil
-		}
+		return err
 	})
 
 	return res
@@ -53,52 +49,55 @@ func (p *Cache) Get(path string) []byte {
 func (p *Cache) Put(path string, data []byte) {
 	key := []byte(path)
 
-	p.db.Update(func(tx *nutsdb.Tx) error {
+	_ = p.db.Update(func(tx *nutsdb.Tx) error {
 		return tx.Put("", key, data, 0)
 	})
 }
 
 func (p *Cache) Image(path string) *canvas.Image {
-	res := &canvas.Image{}
+	data := p.Get(path)
 
-	if data := p.Get(path); len(data) > 0 {
-		buf := bytes.NewBuffer(data)
-		decoder := gob.NewDecoder(buf)
-
-		_ = decoder.Decode(res)
-
-		log.Println("cache data", len(data))
-
-		return res
+	if len(data) == 0 {
+		data, _ = os.ReadFile(path)
+		p.Put(path, data)
+		log.Println("cache put", path, len(data))
 	}
 
-	// TODO 需要读取图像缓存
-	// canvas.NewImageFromImage(src)
-	img := canvas.NewImageFromFile(path)
-	img.FillMode = canvas.ImageFillContain
-	buf := &bytes.Buffer{}
-	encode := gob.NewEncoder(buf)
+	log.Println("cache read", path, len(data))
 
-	_ = encode.Encode(img)
+	image, err := ToImage(data)
+	if err != nil {
+		// TODO 异常图片
+		return nil
+	}
 
-	p.Put(path, buf.Bytes())
+	img := canvas.NewImageFromImage(image)
+	img.FillMode = canvas.ImageFillStretch
+	img.ScaleMode = canvas.ImageScaleFastest
 
 	return img
 }
 
-func Encode(img *canvas.Image) []byte {
-	buf := &bytes.Buffer{}
-	encode := gob.NewEncoder(buf)
+func (p *Cache) Load(paths []string) {
+	loads := make([]string, 0, len(paths))
 
-	_ = encode.Encode(img)
-	return buf.Bytes()
-}
+	_ = p.db.View(func(tx *nutsdb.Tx) error {
+		for _, path := range paths {
+			if _, err := tx.Get("", []byte(path)); err != nil {
+				loads = append(loads, path)
+			}
+		}
 
-func Decode(data []byte) *canvas.Image {
-	buf := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(buf)
-	res := &canvas.Image{}
-	_ = decoder.Decode(res)
+		return nil
+	})
 
-	return res
+	_ = p.db.Update(func(tx *nutsdb.Tx) error {
+		for _, path := range loads {
+			data, _ := os.ReadFile(path)
+			_ = tx.Put("", []byte(path), data, 0)
+			log.Println("load:", path, len(data))
+		}
+
+		return nil
+	})
 }

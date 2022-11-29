@@ -15,3 +15,9 @@ dev: tools
 
 build: tools
 	fyne package -os linux
+
+lint:
+	golangci-lint run --timeout 60s --max-same-issues 50 ./...
+
+lint-fix:
+	golangci-lint run --timeout 60s --max-same-issues 50 --fix ./...
