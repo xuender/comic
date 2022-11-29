@@ -12,6 +12,7 @@ func InitApp() *app.App {
 	wire.Build(
 		app.NewApp,
 		app.NewCache,
+		app.NewFiles,
 	)
 	return &app.App{}
 }

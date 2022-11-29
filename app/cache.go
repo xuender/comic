@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"log"
 	"os"
 
@@ -78,7 +79,33 @@ func (p *Cache) Image(path string) *canvas.Image {
 	return img
 }
 
-func (p *Cache) Load(paths []string) {
+func (p *Cache) Load(path string, reader io.ReadCloser) {
+	isOld := true
+	_ = p.db.View(func(tx *nutsdb.Tx) error {
+		if _, err := tx.Get("", []byte(path)); err == nil {
+			isOld = false
+		}
+
+		return nil
+	})
+
+	if isOld {
+		return
+	}
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return
+	}
+
+	defer reader.Close()
+
+	_ = p.db.Update(func(tx *nutsdb.Tx) error {
+		return tx.Put("", []byte(path), data, 0)
+	})
+}
+
+func (p *Cache) Loads(paths []string) {
 	loads := make([]string, 0, len(paths))
 
 	_ = p.db.View(func(tx *nutsdb.Tx) error {

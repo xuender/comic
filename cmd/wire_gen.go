@@ -14,6 +14,7 @@ import (
 
 func InitApp() *app.App {
 	cache := app.NewCache()
-	appApp := app.NewApp(cache)
+	files := app.NewFiles(cache)
+	appApp := app.NewApp(cache, files)
 	return appApp
 }
