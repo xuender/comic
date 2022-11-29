@@ -15,6 +15,22 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+type Mode int
+
+const (
+	ModeFit Mode = iota
+	ModeFull
+	ModeByWidth
+	ModeByHeight
+)
+
+var modes = map[Mode]string{
+	ModeFit:      "*",
+	ModeFull:     "/",
+	ModeByWidth:  "W",
+	ModeByHeight: "H",
+}
+
 type App struct {
 	app     fyne.App
 	main    fyne.Window
@@ -25,6 +41,8 @@ type App struct {
 	files   *Files
 	help    dialog.Dialog
 	toolbar *widget.Toolbar
+	mode    Mode
+	radio   *widget.RadioGroup
 }
 
 func NewApp(
@@ -58,7 +76,22 @@ func NewApp(
 		widget.NewToolbarSpacer(),
 		widget.NewToolbarAction(theme.HelpIcon(), app.showHelp),
 	)
-	border := container.NewBorder(toolbar, nil, nil, nil, scroll)
+
+	options := map[string]func(){
+		"*": app.refresh,
+		"/": app.full,
+		"W": app.width,
+		"H": app.height,
+	}
+	radio := widget.NewRadioGroup([]string{"*", "/", "W", "H"}, func(option string) {
+		if call, has := options[option]; has {
+			call()
+		}
+
+		log.Println(option)
+	})
+	radio.Horizontal = true
+	border := container.NewBorder(toolbar, radio, nil, nil, scroll)
 	// nolint: gomnd
 	main.Resize(fyne.NewSize(800, 600))
 	main.SetContent(border)
@@ -66,6 +99,7 @@ func NewApp(
 
 	app.border = border
 	app.toolbar = toolbar
+	app.radio = radio
 	app.help = app.createHelp()
 
 	return app
@@ -100,6 +134,7 @@ func (p *App) init() {
 			log.Println(ke.Name)
 		}
 	})
+	p.SetMode(ModeFit)
 }
 
 func (p *App) Run(args []string) {
@@ -115,6 +150,18 @@ func (p *App) Run(args []string) {
 	p.app.Run()
 }
 
+func (p *App) reset() {
+	switch p.mode {
+	case ModeFull:
+		p.full()
+	case ModeByWidth:
+		p.width()
+	case ModeByHeight:
+		p.height()
+	default:
+	}
+}
+
 func (p *App) show() {
 	if p.files.Len() < 1 {
 		p.img = NoneImage()
@@ -122,6 +169,7 @@ func (p *App) show() {
 		p.img.SetMinSize(fyne.NewSize(400, 400))
 		p.img.FillMode = canvas.ImageFillStretch
 		p.img.ScaleMode = canvas.ImageScaleFastest
+		p.reset()
 		p.main.Canvas().SetContent(p.border)
 		p.main.SetTitle("Comic")
 
@@ -137,6 +185,8 @@ func (p *App) show() {
 
 	p.center.RemoveAll()
 	p.center.Add(p.img)
+
+	p.reset()
 
 	p.main.Canvas().SetContent(p.border)
 	p.main.SetTitle(path)
@@ -212,6 +262,7 @@ func (p *App) fullScreen() {
 }
 
 func (p *App) refresh() {
+	p.SetMode(ModeFit)
 	// 原始尺寸
 	if p.img.Image == nil {
 		return
@@ -240,13 +291,23 @@ func (p *App) zoomOut() {
 	p.img.SetMinSize(size)
 }
 
+func (p *App) SetMode(mode Mode) {
+	p.mode = mode
+	log.Println("mode", modes[p.mode])
+	p.radio.SetSelected(modes[p.mode])
+}
+
 func (p *App) full() {
+	p.SetMode(ModeFull)
 	size := ToSize(p.img.Size(), p.main.Canvas().Size())
 	p.img.Resize(size)
 	p.img.SetMinSize(size)
+
+	log.Println("full")
 }
 
 func (p *App) width() {
+	p.SetMode(ModeByWidth)
 	width := p.main.Canvas().Size().Width
 	height := width / p.img.Size().Width * p.img.Size().Height
 	size := fyne.NewSize(width, height)
@@ -255,6 +316,7 @@ func (p *App) width() {
 }
 
 func (p *App) height() {
+	p.SetMode(ModeByHeight)
 	height := p.main.Canvas().Size().Height
 	width := height / p.img.Size().Height * p.img.Size().Width
 	size := fyne.NewSize(width, height)
