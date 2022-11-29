@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/theme"
 	"github.com/xujiajun/nutsdb"
 )
 
@@ -56,32 +55,20 @@ func (p *Cache) Put(path string, data []byte) {
 	})
 }
 
-func (p *Cache) Error() *canvas.Image {
-	img := canvas.NewImageFromResource(theme.ErrorIcon())
-	img.FillMode = canvas.ImageFillStretch
-
-	return img
-}
-
 func (p *Cache) Image(path string) *canvas.Image {
 	data := p.Get(path)
 
 	if len(data) == 0 {
-		if data, _ = os.ReadFile(path); len(data) > 0 {
-			p.Put(path, data)
-			log.Println("cache put", path, len(data))
-		} else {
-			return p.Error()
-		}
+		return ErrorImage()
 	}
 
 	log.Println("cache read", path, len(data))
 
 	image, err := ToImage(data)
 	if err != nil {
-		log.Println(path, data, err)
+		log.Println(path, err)
 
-		return p.Error()
+		return ErrorImage()
 	}
 
 	img := canvas.NewImageFromImage(image)
@@ -92,10 +79,11 @@ func (p *Cache) Image(path string) *canvas.Image {
 }
 
 func (p *Cache) Load(path string, reader io.ReadCloser) {
-	isOld := true
+	isOld := false
 	_ = p.db.View(func(tx *nutsdb.Tx) error {
-		if _, err := tx.Get("", []byte(path)); err == nil {
-			isOld = false
+		if entry, err := tx.Get("", []byte(path)); err == nil {
+			log.Println("Load", path, "old", len(entry.Value))
+			isOld = true
 		}
 
 		return nil
@@ -113,6 +101,8 @@ func (p *Cache) Load(path string, reader io.ReadCloser) {
 	defer reader.Close()
 
 	_ = p.db.Update(func(tx *nutsdb.Tx) error {
+		log.Println("Load", path, "new", len(data))
+
 		return tx.Put("", []byte(path), data, 0)
 	})
 }

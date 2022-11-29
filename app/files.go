@@ -5,12 +5,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/h2non/filetype"
 	"github.com/mholt/archiver/v4"
 )
 
-const _headSize = 261
+const _headSize = 262
 
 type Book struct {
 	path string
@@ -153,6 +154,7 @@ func (p *Files) readDir(path string) []*Book {
 	}
 
 	if len(book.subs) > 0 {
+		sort.Strings(book.subs)
 		res = append([]*Book{book}, res...)
 	}
 
@@ -160,18 +162,27 @@ func (p *Files) readDir(path string) []*Book {
 }
 
 func (p *Files) readArchive(mainPath string) []*Book {
+	log.Println("read achive", mainPath)
 	if fsys, err := archiver.FileSystem(mainPath); err == nil {
 		res := []string{}
 
 		_ = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
+			if err != nil {
+				log.Println(err)
+
 				return err
+			}
+
+			if d.IsDir() {
+				return nil
 			}
 
 			file, err := fsys.Open(path)
 			if err != nil {
 				return nil
 			}
+
+			log.Println(path)
 
 			head := make([]byte, _headSize)
 			_, _ = file.Read(head)
@@ -189,6 +200,7 @@ func (p *Files) readArchive(mainPath string) []*Book {
 			return nil
 		})
 
+		sort.Strings(res)
 		log.Println(res)
 
 		return []*Book{{path: mainPath, subs: res}}
@@ -198,6 +210,7 @@ func (p *Files) readArchive(mainPath string) []*Book {
 }
 
 func (p *Files) ReadBooks(mainPath string) []*Book {
+	log.Println("ReadBooks", mainPath)
 	stat, err := os.Stat(mainPath)
 	if os.IsNotExist(err) {
 		return nil
@@ -214,6 +227,8 @@ func (p *Files) ReadBooks(mainPath string) []*Book {
 	if IsArchive(mainPath) {
 		return p.readArchive(mainPath)
 	}
+
+	log.Println("pass", mainPath)
 
 	return nil
 }

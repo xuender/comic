@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"log"
 	"net/url"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -32,17 +33,18 @@ var modes = map[Mode]string{
 }
 
 type App struct {
-	app     fyne.App
-	main    fyne.Window
-	center  *fyne.Container
-	border  *fyne.Container
-	img     *canvas.Image
-	cache   *Cache
-	files   *Files
-	help    dialog.Dialog
-	toolbar *widget.Toolbar
-	mode    Mode
-	radio   *widget.RadioGroup
+	app    fyne.App
+	main   fyne.Window
+	center *fyne.Container
+	border *fyne.Container
+	img    *canvas.Image
+	cache  *Cache
+	files  *Files
+	help   dialog.Dialog
+	mode   Mode
+	radio  *widget.RadioGroup
+	scroll *container.Scroll
+	show   func()
 }
 
 func NewApp(
@@ -59,6 +61,7 @@ func NewApp(
 		app:    fyneApp,
 		main:   main,
 		center: center,
+		scroll: scroll,
 		img:    img,
 		cache:  cache,
 		files:  files,
@@ -98,9 +101,9 @@ func NewApp(
 	main.CenterOnScreen()
 
 	app.border = border
-	app.toolbar = toolbar
 	app.radio = radio
 	app.help = app.createHelp()
+	app.show = Debounced(app.Show, time.Millisecond*300)
 
 	return app
 }
@@ -117,7 +120,6 @@ func (p *App) init() {
 		fyne.KeySpace:    p.next,
 		fyne.KeyPageUp:   p.back,
 		fyne.KeyQ:        p.app.Quit,
-		fyne.KeyEscape:   p.app.Quit,
 		fyne.KeySlash:    p.full,
 		fyne.KeyM:        p.full,
 		fyne.KeyHome:     p.home,
@@ -126,6 +128,9 @@ func (p *App) init() {
 		fyne.KeyH:        p.height,
 		fyne.KeyF1:       p.showHelp,
 		fyne.KeyF10:      p.showHelp,
+		fyne.KeyEscape:   p.hideHelp,
+		fyne.KeyUp:       p.top,
+		fyne.KeyDown:     p.bottom,
 	}
 
 	p.main.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
@@ -142,27 +147,17 @@ func (p *App) Run(args []string) {
 	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
 	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
 	// p.files.Load([]string{"doc"})
+	// p.files.Load([]string{"doc/a.zip"})
 	p.files.Load(args)
 
 	p.init()
-	p.show()
+	p.Show()
 	p.main.Show()
 	p.app.Run()
 }
 
-func (p *App) reset() {
-	switch p.mode {
-	case ModeFull:
-		p.full()
-	case ModeByWidth:
-		p.width()
-	case ModeByHeight:
-		p.height()
-	default:
-	}
-}
-
-func (p *App) show() {
+func (p *App) Show() {
+	log.Println("Show")
 	if p.files.Len() < 1 {
 		p.img = NoneImage()
 		// nolint: gomnd
@@ -185,6 +180,7 @@ func (p *App) show() {
 
 	p.center.RemoveAll()
 	p.center.Add(p.img)
+	p.top()
 
 	p.reset()
 
@@ -210,17 +206,48 @@ func (p *App) createHelp() dialog.Dialog {
 		canvas.NewText("Height", white), canvas.NewText("H", grey), canvas.NewText("", grey),
 		canvas.NewText("First Page", white), canvas.NewText("Home", grey), canvas.NewText("", grey),
 		canvas.NewText("Last Page", white), canvas.NewText("End", grey), canvas.NewText("", grey),
+		canvas.NewText("To Top", white), canvas.NewText("Up", grey), canvas.NewText("", grey),
+		canvas.NewText("To Bottom", white), canvas.NewText("Down", grey), canvas.NewText("", grey),
 		canvas.NewText("Help", white), canvas.NewText("F1", grey), canvas.NewText("F10", grey),
-		canvas.NewText("Exit", white), canvas.NewText("Esc", grey), canvas.NewText("Q", grey),
-		canvas.NewText("", white), canvas.NewText("", grey),
-		widget.NewHyperlink("xuender/comic", url),
+		canvas.NewText("Quit", white), canvas.NewText("Q", grey), canvas.NewText("", grey),
+		canvas.NewText("", white), canvas.NewText("", grey), widget.NewHyperlink("xuender/comic", url),
 	)
 
 	return dialog.NewCustom("Help", "Close", grid, p.main)
 }
 
+func (p *App) reset() {
+	switch p.mode {
+	case ModeFull:
+		p.full()
+	case ModeByWidth:
+		p.width()
+	case ModeByHeight:
+		p.height()
+	default:
+	}
+}
+
 func (p *App) showHelp() {
 	p.help.Show()
+}
+
+func (p *App) hideHelp() {
+	if p.main.FullScreen() {
+		p.fullScreen()
+	}
+
+	p.help.Hide()
+}
+
+func (p *App) top() {
+	log.Println("top")
+	p.scroll.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.Delta{DX: 0, DY: p.scroll.Offset.Y}})
+}
+
+func (p *App) bottom() {
+	log.Println("bottom")
+	p.scroll.ScrollToBottom()
 }
 
 func (p *App) next() {
@@ -253,12 +280,14 @@ func NoneImage() *canvas.Image {
 func (p *App) fullScreen() {
 	p.main.SetFullScreen(!p.main.FullScreen())
 	if p.main.FullScreen() {
-		p.toolbar.Hide()
+		p.border.Objects[1].Hide()
+		p.border.Objects[2].Hide()
 
 		return
 	}
 
-	p.toolbar.Show()
+	p.border.Objects[1].Show()
+	p.border.Objects[2].Show()
 }
 
 func (p *App) refresh() {

@@ -5,15 +5,20 @@ import (
 	"image"
 	"log"
 	"os"
+	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/theme"
 	"github.com/h2non/filetype"
 )
 
 func IsImage(path string) bool {
 	file, err := os.Open(path)
 	if err != nil {
+		log.Println("IsImage", err)
+
 		return false
 	}
 
@@ -28,6 +33,8 @@ func IsImage(path string) bool {
 func IsArchive(path string) bool {
 	file, err := os.Open(path)
 	if err != nil {
+		log.Println("IsArchive", err)
+
 		return false
 	}
 
@@ -78,4 +85,29 @@ func ToSize(size, max fyne.Size) fyne.Size {
 	}
 
 	return fyne.NewSize(size.Width*test, size.Height*test)
+}
+
+func ErrorImage() *canvas.Image {
+	img := canvas.NewImageFromResource(theme.FyneLogo())
+	img.FillMode = canvas.ImageFillStretch
+
+	return img
+}
+
+func Debounced(fun func(), interval time.Duration) func() {
+	var (
+		mutex sync.Mutex
+		timer *time.Timer
+	)
+
+	return func() {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		if timer != nil {
+			timer.Stop()
+		}
+
+		timer = time.AfterFunc(interval, fun)
+	}
 }
