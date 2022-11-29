@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/theme"
 	"github.com/xujiajun/nutsdb"
 )
 
@@ -55,21 +56,32 @@ func (p *Cache) Put(path string, data []byte) {
 	})
 }
 
+func (p *Cache) Error() *canvas.Image {
+	img := canvas.NewImageFromResource(theme.ErrorIcon())
+	img.FillMode = canvas.ImageFillStretch
+
+	return img
+}
+
 func (p *Cache) Image(path string) *canvas.Image {
 	data := p.Get(path)
 
 	if len(data) == 0 {
-		data, _ = os.ReadFile(path)
-		p.Put(path, data)
-		log.Println("cache put", path, len(data))
+		if data, _ = os.ReadFile(path); len(data) > 0 {
+			p.Put(path, data)
+			log.Println("cache put", path, len(data))
+		} else {
+			return p.Error()
+		}
 	}
 
 	log.Println("cache read", path, len(data))
 
 	image, err := ToImage(data)
 	if err != nil {
-		// TODO 异常图片
-		return nil
+		log.Println(path, data, err)
+
+		return p.Error()
 	}
 
 	img := canvas.NewImageFromImage(image)

@@ -1,8 +1,8 @@
 Website = "https://github.com/xuender/comic"
 
 [Details]
-Build = 2
-ID = "com.github.xuender"
-Icon = "doc/logo.png"
-Name = "Comic"
-Version = "1.0.0"
+  Icon = "doc/logo.png"
+  Name = "Comic"
+  ID = "com.github.xuender"
+  Version = "1.0.0"
+  Build = 3

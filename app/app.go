@@ -100,11 +100,10 @@ func (p *App) init() {
 
 func (p *App) Run(args []string) {
 	defer p.cache.Close()
-
 	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
 	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
-	p.files.Load([]string{"doc"})
-	// p.files.Load(args)
+	// p.files.Load([]string{"doc"})
+	p.files.Load(args)
 
 	p.init()
 	p.show()
