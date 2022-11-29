@@ -16,14 +16,15 @@ import (
 )
 
 type App struct {
-	app    fyne.App
-	main   fyne.Window
-	center *fyne.Container
-	border *fyne.Container
-	img    *canvas.Image
-	cache  *Cache
-	files  *Files
-	help   dialog.Dialog
+	app     fyne.App
+	main    fyne.Window
+	center  *fyne.Container
+	border  *fyne.Container
+	img     *canvas.Image
+	cache   *Cache
+	files   *Files
+	help    dialog.Dialog
+	toolbar *widget.Toolbar
 }
 
 func NewApp(
@@ -64,6 +65,7 @@ func NewApp(
 	main.CenterOnScreen()
 
 	app.border = border
+	app.toolbar = toolbar
 	app.help = app.createHelp()
 
 	return app
@@ -80,7 +82,7 @@ func (p *App) init() {
 		fyne.KeyPageDown: p.next,
 		fyne.KeySpace:    p.next,
 		fyne.KeyPageUp:   p.back,
-		fyne.KeyE:        p.app.Quit,
+		fyne.KeyQ:        p.app.Quit,
 		fyne.KeyEscape:   p.app.Quit,
 		fyne.KeySlash:    p.full,
 		fyne.KeyM:        p.full,
@@ -159,7 +161,7 @@ func (p *App) createHelp() dialog.Dialog {
 		canvas.NewText("First Page", white), canvas.NewText("Home", grey), canvas.NewText("", grey),
 		canvas.NewText("Last Page", white), canvas.NewText("End", grey), canvas.NewText("", grey),
 		canvas.NewText("Help", white), canvas.NewText("F1", grey), canvas.NewText("F10", grey),
-		canvas.NewText("Exit", white), canvas.NewText("Esc", grey), canvas.NewText("E", grey),
+		canvas.NewText("Exit", white), canvas.NewText("Esc", grey), canvas.NewText("Q", grey),
 		canvas.NewText("", white), canvas.NewText("", grey),
 		widget.NewHyperlink("xuender/comic", url),
 	)
@@ -200,6 +202,13 @@ func NoneImage() *canvas.Image {
 
 func (p *App) fullScreen() {
 	p.main.SetFullScreen(!p.main.FullScreen())
+	if p.main.FullScreen() {
+		p.toolbar.Hide()
+
+		return
+	}
+
+	p.toolbar.Show()
 }
 
 func (p *App) refresh() {
