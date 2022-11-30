@@ -3,7 +3,6 @@ package app
 import (
 	"io/fs"
 	"log"
-	"os"
 	"path/filepath"
 	"sort"
 
@@ -47,12 +46,10 @@ func (p *Files) Len() int {
 }
 
 func (p *Files) Load(paths []string) {
-	first := true
 	for _, path := range paths {
 		if abs, err := filepath.Abs(path); err == nil {
-			if books := p.ReadBooks(abs, first); books != nil {
+			if books := p.ReadBooks(abs); books != nil {
 				p.books = append(p.books, books...)
-				first = false
 			}
 		}
 	}
@@ -123,48 +120,8 @@ func (p *Files) Up() {
 	}
 }
 
-func (p *Files) readDir(path string) []*Book {
-	files, err := os.ReadDir(path)
-	if err != nil {
-		return nil
-	}
-
-	res := []*Book{}
-	book := &Book{path: path, subs: []string{}}
-
-	for _, file := range files {
-		name := filepath.Join(path, file.Name())
-
-		if file.IsDir() {
-			res = append(res, p.readDir(name)...)
-
-			continue
-		}
-
-		if IsImage(name) {
-			if reader, err := os.Open(name); err == nil {
-				go p.cache.Load(name, reader)
-				book.subs = append(book.subs, name)
-			}
-
-			continue
-		}
-
-		if IsArchive(name) {
-			res = append(res, p.readArchive(name)...)
-		}
-	}
-
-	if len(book.subs) > 0 {
-		sort.Strings(book.subs)
-		res = append([]*Book{book}, res...)
-	}
-
-	return res
-}
-
-func (p *Files) readArchive(mainPath string) []*Book {
-	log.Println("read achive", mainPath)
+func (p *Files) ReadBooks(mainPath string) []*Book {
+	log.Println("read", mainPath)
 	if fsys, err := archiver.FileSystem(mainPath); err == nil {
 		res := []string{}
 
@@ -194,7 +151,11 @@ func (p *Files) readArchive(mainPath string) []*Book {
 				name := filepath.Join(mainPath, path)
 				file, _ := fsys.Open(path)
 
-				go p.cache.Load(name, file)
+				if len(p.books) == 0 {
+					p.cache.Load(name, file)
+				} else {
+					go p.cache.Load(name, file)
+				}
 
 				res = append(res, name)
 			}
@@ -207,40 +168,6 @@ func (p *Files) readArchive(mainPath string) []*Book {
 
 		return []*Book{{path: mainPath, subs: res}}
 	}
-
-	return nil
-}
-
-func (p *Files) ReadBooks(mainPath string, first bool) []*Book {
-	log.Println("ReadBooks", mainPath)
-	stat, err := os.Stat(mainPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-
-	if stat.IsDir() {
-		return p.readDir(mainPath)
-	}
-
-	if IsImage(mainPath) {
-		if reader, err := os.Open(mainPath); err == nil {
-			if first {
-				p.cache.Load(mainPath, reader)
-			} else {
-				go p.cache.Load(mainPath, reader)
-			}
-
-			return []*Book{{path: mainPath}}
-		}
-
-		return nil
-	}
-
-	if IsArchive(mainPath) {
-		return p.readArchive(mainPath)
-	}
-
-	log.Println("pass", mainPath)
 
 	return nil
 }

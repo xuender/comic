@@ -57,7 +57,6 @@ func NewApp(
 	img := NoneImage()
 	center := container.New(layout.NewCenterLayout(), img)
 	scroll := container.NewScroll(center)
-
 	app := &App{
 		app:    fyneApp,
 		main:   main,
@@ -149,11 +148,11 @@ func (p *App) createToolbar() *widget.Toolbar {
 
 func (p *App) Run(args []string) {
 	defer p.cache.Close()
-	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
+	p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
 	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
-	// p.files.Load([]string{"doc"})
+	p.files.Load([]string{"doc"})
 	// p.files.Load([]string{"doc/a.zip"})
-	p.files.Load(args)
+	// p.files.Load(args)
 
 	p.setKey()
 	p.Show()
