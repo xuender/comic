@@ -19,17 +19,17 @@ import (
 type Mode int
 
 const (
-	ModeFit Mode = iota
-	ModeFull
-	ModeByWidth
-	ModeByHeight
+	ModeActual Mode = iota
+	ModeWindow
+	ModeWidth
+	ModeHeight
 )
 
 var modes = map[Mode]string{
-	ModeFit:      "*",
-	ModeFull:     "/",
-	ModeByWidth:  "W",
-	ModeByHeight: "H",
+	ModeActual: "Actual",
+	ModeWindow: "Window",
+	ModeWidth:  "Width",
+	ModeHeight: "Height",
 }
 
 type App struct {
@@ -68,30 +68,63 @@ func NewApp(
 		files:  files,
 	}
 
-	commands := []Command{
-		{Help: "First Page", Call: app.home, Icon: theme.MediaSkipPreviousIcon(), Key1: fyne.KeyHome},
-		{Help: "Page Up", Call: app.back, Icon: theme.NavigateBackIcon(), Key1: fyne.KeyPageUp},
-		{Help: "Page Down", Call: app.next, Icon: theme.NavigateNextIcon(), Key1: fyne.KeyPageDown, Key2: fyne.KeySpace},
-		{Help: "Last Page", Call: app.end, Icon: theme.MediaSkipNextIcon(), Key1: fyne.KeyEnd},
-		{Help: "Separator"},
-		{Help: "Full Screen", Call: app.fullScreen, Icon: theme.ViewFullScreenIcon(), Key1: fyne.KeyF11},
-		{Help: "Max", Call: app.full, Icon: theme.ViewRestoreIcon(), Key1: fyne.KeySlash, Key2: fyne.KeyM},
-		{Help: "Width", Call: app.width, Icon: theme.MoreHorizontalIcon(), Key1: fyne.KeyW},
-		{Help: "Height", Call: app.height, Icon: theme.MoreVerticalIcon(), Key1: fyne.KeyH},
-		{Help: "Refresh", Call: app.refresh, Icon: theme.ViewRefreshIcon(), Key1: fyne.KeyAsterisk, Key2: fyne.Key8},
-		{Help: "Zoom In", Call: app.zoomIn, Icon: theme.ZoomInIcon(), Key1: fyne.KeyPlus, Key2: fyne.KeyEqual},
-		{Help: "Zoom Out", Call: app.zoomOut, Icon: theme.ZoomOutIcon(), Key1: fyne.KeyMinus},
-		{Help: "Close", Call: app.hideHelp, Key1: fyne.KeyEscape},
-		{Help: "To Top", Call: app.top, Key1: fyne.KeyUp},
-		{Help: "To Bottom", Call: app.bottom, Key1: fyne.KeyDown},
-		{Help: "Spacer"},
-		{Help: "Help", Call: app.showHelp, Icon: theme.HelpIcon(), Key1: fyne.KeyF1, Key2: fyne.KeyF10},
-		{Help: "Quit", Call: fyneApp.Quit, Key1: fyne.KeyQ},
-	}
+	app.createCommands()
+	app.createRadio()
+	border := container.NewBorder(app.createToolbar(), app.radio, nil, nil, scroll)
+	// nolint: gomnd
+	main.Resize(fyne.NewSize(800, 600))
+	main.SetContent(border)
+	main.CenterOnScreen()
 
+	app.border = border
+	app.help = app.createHelp()
+	app.show = Debounced(app.Show, time.Millisecond*300)
+
+	return app
+}
+
+func (p *App) createCommands() {
+	p.commands = []Command{
+		{Help: "First Page", Call: p.first, Icon: theme.MediaSkipPreviousIcon(), Key1: fyne.KeyHome},
+		{Help: "Previous Page", Call: p.previous, Icon: theme.NavigateBackIcon(), Key1: fyne.KeyPageUp},
+		{Help: "Next Page", Call: p.next, Icon: theme.NavigateNextIcon(), Key1: fyne.KeyPageDown, Key2: fyne.KeySpace},
+		{Help: "Last Page", Call: p.last, Icon: theme.MediaSkipNextIcon(), Key1: fyne.KeyEnd},
+		{Help: "Separator"},
+		{Help: "Full screen", Call: p.fullScreen, Icon: theme.ViewFullScreenIcon(), Key1: fyne.KeyF11},
+		{Help: "Actual Size", Call: p.modeActual, Icon: theme.ViewRefreshIcon(), Key1: fyne.KeyAsterisk, Key2: fyne.Key8},
+		{Help: "Fit to window", Call: p.modeWindow, Icon: theme.ViewRestoreIcon(), Key1: fyne.KeySlash, Key2: fyne.KeyM},
+		{Help: "Fit to width", Call: p.modeWidth, Icon: theme.MoreHorizontalIcon(), Key1: fyne.KeyW},
+		{Help: "Fit to height", Call: p.modeHeight, Icon: theme.MoreVerticalIcon(), Key1: fyne.KeyH},
+		{Help: "Zoom In", Call: p.zoomIn, Icon: theme.ZoomInIcon(), Key1: fyne.KeyPlus, Key2: fyne.KeyEqual},
+		{Help: "Zoom Out", Call: p.zoomOut, Icon: theme.ZoomOutIcon(), Key1: fyne.KeyMinus},
+		{Help: "Close", Call: p.close, Key1: fyne.KeyEscape},
+		{Help: "To Top", Call: p.top, Key1: fyne.KeyUp},
+		{Help: "To Bottom", Call: p.bottom, Key1: fyne.KeyDown},
+		{Help: "Spacer"},
+		{Help: "This Help", Call: p.showHelp, Icon: theme.HelpIcon(), Key1: fyne.KeyF1, Key2: fyne.KeyF10},
+		{Help: "Quit", Call: p.app.Quit, Key1: fyne.KeyQ},
+	}
+}
+
+func (p *App) createRadio() {
+	options := map[string]func(){
+		"Actual": p.modeActual,
+		"Window": p.modeWindow,
+		"Width":  p.modeWidth,
+		"Height": p.modeHeight,
+	}
+	p.radio = widget.NewRadioGroup([]string{"Actual", "Window", "Width", "Height"}, func(option string) {
+		if call, has := options[option]; has {
+			call()
+		}
+	})
+	p.radio.Horizontal = true
+}
+
+func (p *App) createToolbar() *widget.Toolbar {
 	items := []widget.ToolbarItem{}
 
-	for _, command := range commands {
+	for _, command := range p.commands {
 		if command.Help == "Separator" {
 			items = append(items, widget.NewToolbarSeparator())
 
@@ -111,37 +144,24 @@ func NewApp(
 		items = append(items, widget.NewToolbarAction(command.Icon, command.Call))
 	}
 
-	toolbar := widget.NewToolbar(items...)
-	options := map[string]func(){
-		"*": app.refresh,
-		"/": app.full,
-		"W": app.width,
-		"H": app.height,
-	}
-	radio := widget.NewRadioGroup([]string{"*", "/", "W", "H"}, func(option string) {
-		if call, has := options[option]; has {
-			call()
-		}
-
-		log.Println(option)
-	})
-	radio.Horizontal = true
-	border := container.NewBorder(toolbar, radio, nil, nil, scroll)
-	// nolint: gomnd
-	main.Resize(fyne.NewSize(800, 600))
-	main.SetContent(border)
-	main.CenterOnScreen()
-
-	app.border = border
-	app.radio = radio
-	app.commands = commands
-	app.help = app.createHelp()
-	app.show = Debounced(app.Show, time.Millisecond*300)
-
-	return app
+	return widget.NewToolbar(items...)
 }
 
-func (p *App) init() {
+func (p *App) Run(args []string) {
+	defer p.cache.Close()
+	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
+	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
+	// p.files.Load([]string{"doc"})
+	// p.files.Load([]string{"doc/a.zip"})
+	p.files.Load(args)
+
+	p.setKey()
+	p.Show()
+	p.main.Show()
+	p.app.Run()
+}
+
+func (p *App) setKey() {
 	p.main.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
 		for _, command := range p.commands {
 			if ke.Name == command.Key1 || ke.Name == command.Key2 {
@@ -150,25 +170,10 @@ func (p *App) init() {
 			}
 		}
 	})
-	p.SetMode(ModeFit)
-}
-
-func (p *App) Run(args []string) {
-	defer p.cache.Close()
-	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
-	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
-	p.files.Load([]string{"doc"})
-	// p.files.Load([]string{"doc/a.zip"})
-	// p.files.Load(args)
-
-	p.init()
-	p.Show()
-	p.main.Show()
-	p.app.Run()
+	p.SetMode(ModeActual)
 }
 
 func (p *App) Show() {
-	log.Println("Show")
 	if p.files.Len() < 1 {
 		p.img = NoneImage()
 		// nolint: gomnd
@@ -185,7 +190,9 @@ func (p *App) Show() {
 	path := p.files.Get()
 	p.img = p.cache.Image(path)
 	// p.img = Image(path)
-	if p.img.Image != nil {
+	if p.img.Image == nil {
+		p.img.SetMinSize(p.main.Canvas().Size())
+	} else {
 		p.img.SetMinSize(fyne.NewSize(float32(p.img.Image.Bounds().Dx()), float32(p.img.Image.Bounds().Dy())))
 	}
 
@@ -235,12 +242,12 @@ func (p *App) createHelp() dialog.Dialog {
 
 func (p *App) reset() {
 	switch p.mode {
-	case ModeFull:
-		p.full()
-	case ModeByWidth:
-		p.width()
-	case ModeByHeight:
-		p.height()
+	case ModeWindow:
+		p.modeWindow()
+	case ModeWidth:
+		p.modeWidth()
+	case ModeHeight:
+		p.modeHeight()
 	default:
 	}
 }
@@ -249,7 +256,7 @@ func (p *App) showHelp() {
 	p.help.Show()
 }
 
-func (p *App) hideHelp() {
+func (p *App) close() {
 	if p.main.FullScreen() {
 		p.fullScreen()
 	}
@@ -258,12 +265,10 @@ func (p *App) hideHelp() {
 }
 
 func (p *App) top() {
-	log.Println("top")
 	p.scroll.Scrolled(&fyne.ScrollEvent{Scrolled: fyne.Delta{DX: 0, DY: p.scroll.Offset.Y}})
 }
 
 func (p *App) bottom() {
-	log.Println("bottom")
 	p.scroll.ScrollToBottom()
 }
 
@@ -272,17 +277,17 @@ func (p *App) next() {
 	p.show()
 }
 
-func (p *App) home() {
+func (p *App) first() {
 	p.files.Start()
 	p.show()
 }
 
-func (p *App) end() {
+func (p *App) last() {
 	p.files.End()
 	p.show()
 }
 
-func (p *App) back() {
+func (p *App) previous() {
 	p.files.Up()
 	p.show()
 }
@@ -307,9 +312,9 @@ func (p *App) fullScreen() {
 	p.border.Objects[2].Show()
 }
 
-func (p *App) refresh() {
-	p.SetMode(ModeFit)
-	// 原始尺寸
+func (p *App) modeActual() {
+	p.SetMode(ModeActual)
+
 	if p.img.Image == nil {
 		return
 	}
@@ -339,21 +344,18 @@ func (p *App) zoomOut() {
 
 func (p *App) SetMode(mode Mode) {
 	p.mode = mode
-	log.Println("mode", modes[p.mode])
 	p.radio.SetSelected(modes[p.mode])
 }
 
-func (p *App) full() {
-	p.SetMode(ModeFull)
+func (p *App) modeWindow() {
+	p.SetMode(ModeWindow)
 	size := ToSize(p.img.Size(), p.main.Canvas().Size())
 	p.img.Resize(size)
 	p.img.SetMinSize(size)
-
-	log.Println("full")
 }
 
-func (p *App) width() {
-	p.SetMode(ModeByWidth)
+func (p *App) modeWidth() {
+	p.SetMode(ModeWidth)
 	width := p.main.Canvas().Size().Width
 	height := width / p.img.Size().Width * p.img.Size().Height
 	size := fyne.NewSize(width, height)
@@ -361,8 +363,8 @@ func (p *App) width() {
 	p.img.SetMinSize(size)
 }
 
-func (p *App) height() {
-	p.SetMode(ModeByHeight)
+func (p *App) modeHeight() {
+	p.SetMode(ModeHeight)
 	height := p.main.Canvas().Size().Height
 	width := height / p.img.Size().Height * p.img.Size().Width
 	size := fyne.NewSize(width, height)

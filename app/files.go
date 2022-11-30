@@ -47,10 +47,12 @@ func (p *Files) Len() int {
 }
 
 func (p *Files) Load(paths []string) {
+	first := true
 	for _, path := range paths {
 		if abs, err := filepath.Abs(path); err == nil {
-			if books := p.ReadBooks(abs); books != nil {
+			if books := p.ReadBooks(abs, first); books != nil {
 				p.books = append(p.books, books...)
+				first = false
 			}
 		}
 	}
@@ -209,7 +211,7 @@ func (p *Files) readArchive(mainPath string) []*Book {
 	return nil
 }
 
-func (p *Files) ReadBooks(mainPath string) []*Book {
+func (p *Files) ReadBooks(mainPath string, first bool) []*Book {
 	log.Println("ReadBooks", mainPath)
 	stat, err := os.Stat(mainPath)
 	if os.IsNotExist(err) {
@@ -221,7 +223,17 @@ func (p *Files) ReadBooks(mainPath string) []*Book {
 	}
 
 	if IsImage(mainPath) {
-		return []*Book{{path: mainPath}}
+		if reader, err := os.Open(mainPath); err == nil {
+			if first {
+				p.cache.Load(mainPath, reader)
+			} else {
+				go p.cache.Load(mainPath, reader)
+			}
+
+			return []*Book{{path: mainPath}}
+		}
+
+		return nil
 	}
 
 	if IsArchive(mainPath) {
