@@ -33,18 +33,19 @@ var modes = map[Mode]string{
 }
 
 type App struct {
-	app    fyne.App
-	main   fyne.Window
-	center *fyne.Container
-	border *fyne.Container
-	img    *canvas.Image
-	cache  *Cache
-	files  *Files
-	help   dialog.Dialog
-	mode   Mode
-	radio  *widget.RadioGroup
-	scroll *container.Scroll
-	show   func()
+	app      fyne.App
+	main     fyne.Window
+	center   *fyne.Container
+	border   *fyne.Container
+	img      *canvas.Image
+	cache    *Cache
+	files    *Files
+	help     dialog.Dialog
+	mode     Mode
+	radio    *widget.RadioGroup
+	scroll   *container.Scroll
+	show     func()
+	commands []Command
 }
 
 func NewApp(
@@ -67,19 +68,50 @@ func NewApp(
 		files:  files,
 	}
 
-	toolbar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.HomeIcon(), app.home),
-		widget.NewToolbarAction(theme.NavigateBackIcon(), app.back),
-		widget.NewToolbarAction(theme.NavigateNextIcon(), app.next),
-		widget.NewToolbarSeparator(),
-		widget.NewToolbarAction(theme.ViewFullScreenIcon(), app.full),
-		widget.NewToolbarAction(theme.ViewRefreshIcon(), app.refresh),
-		widget.NewToolbarAction(theme.ZoomInIcon(), app.zoomIn),
-		widget.NewToolbarAction(theme.ZoomOutIcon(), app.zoomOut),
-		widget.NewToolbarSpacer(),
-		widget.NewToolbarAction(theme.HelpIcon(), app.showHelp),
-	)
+	commands := []Command{
+		{Help: "First Page", Call: app.home, Icon: theme.MediaSkipPreviousIcon(), Key1: fyne.KeyHome},
+		{Help: "Page Up", Call: app.back, Icon: theme.NavigateBackIcon(), Key1: fyne.KeyPageUp},
+		{Help: "Page Down", Call: app.next, Icon: theme.NavigateNextIcon(), Key1: fyne.KeyPageDown, Key2: fyne.KeySpace},
+		{Help: "Last Page", Call: app.end, Icon: theme.MediaSkipNextIcon(), Key1: fyne.KeyEnd},
+		{Help: "Separator"},
+		{Help: "Full Screen", Call: app.fullScreen, Icon: theme.ViewFullScreenIcon(), Key1: fyne.KeyF11},
+		{Help: "Max", Call: app.full, Icon: theme.ViewRestoreIcon(), Key1: fyne.KeySlash, Key2: fyne.KeyM},
+		{Help: "Width", Call: app.width, Icon: theme.MoreHorizontalIcon(), Key1: fyne.KeyW},
+		{Help: "Height", Call: app.height, Icon: theme.MoreVerticalIcon(), Key1: fyne.KeyH},
+		{Help: "Refresh", Call: app.refresh, Icon: theme.ViewRefreshIcon(), Key1: fyne.KeyAsterisk, Key2: fyne.Key8},
+		{Help: "Zoom In", Call: app.zoomIn, Icon: theme.ZoomInIcon(), Key1: fyne.KeyPlus, Key2: fyne.KeyEqual},
+		{Help: "Zoom Out", Call: app.zoomOut, Icon: theme.ZoomOutIcon(), Key1: fyne.KeyMinus},
+		{Help: "Close", Call: app.hideHelp, Key1: fyne.KeyEscape},
+		{Help: "To Top", Call: app.top, Key1: fyne.KeyUp},
+		{Help: "To Bottom", Call: app.bottom, Key1: fyne.KeyDown},
+		{Help: "Spacer"},
+		{Help: "Help", Call: app.showHelp, Icon: theme.HelpIcon(), Key1: fyne.KeyF1, Key2: fyne.KeyF10},
+		{Help: "Quit", Call: fyneApp.Quit, Key1: fyne.KeyQ},
+	}
 
+	items := []widget.ToolbarItem{}
+
+	for _, command := range commands {
+		if command.Help == "Separator" {
+			items = append(items, widget.NewToolbarSeparator())
+
+			continue
+		}
+
+		if command.Help == "Spacer" {
+			items = append(items, widget.NewToolbarSpacer())
+
+			continue
+		}
+
+		if command.Icon == nil {
+			continue
+		}
+
+		items = append(items, widget.NewToolbarAction(command.Icon, command.Call))
+	}
+
+	toolbar := widget.NewToolbar(items...)
 	options := map[string]func(){
 		"*": app.refresh,
 		"/": app.full,
@@ -102,6 +134,7 @@ func NewApp(
 
 	app.border = border
 	app.radio = radio
+	app.commands = commands
 	app.help = app.createHelp()
 	app.show = Debounced(app.Show, time.Millisecond*300)
 
@@ -109,34 +142,12 @@ func NewApp(
 }
 
 func (p *App) init() {
-	funcs := map[fyne.KeyName]func(){
-		fyne.KeyF11:      p.fullScreen,
-		fyne.Key8:        p.refresh,
-		fyne.KeyAsterisk: p.refresh,
-		fyne.KeyPlus:     p.zoomIn,
-		fyne.KeyEqual:    p.zoomIn,
-		fyne.KeyMinus:    p.zoomOut,
-		fyne.KeyPageDown: p.next,
-		fyne.KeySpace:    p.next,
-		fyne.KeyPageUp:   p.back,
-		fyne.KeyQ:        p.app.Quit,
-		fyne.KeySlash:    p.full,
-		fyne.KeyM:        p.full,
-		fyne.KeyHome:     p.home,
-		fyne.KeyEnd:      p.end,
-		fyne.KeyW:        p.width,
-		fyne.KeyH:        p.height,
-		fyne.KeyF1:       p.showHelp,
-		fyne.KeyF10:      p.showHelp,
-		fyne.KeyEscape:   p.hideHelp,
-		fyne.KeyUp:       p.top,
-		fyne.KeyDown:     p.bottom,
-	}
-
 	p.main.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
-		if call, has := funcs[ke.Name]; has {
-			call()
-			log.Println(ke.Name)
+		for _, command := range p.commands {
+			if ke.Name == command.Key1 || ke.Name == command.Key2 {
+				command.Call()
+				log.Println(ke.Name)
+			}
 		}
 	})
 	p.SetMode(ModeFit)
@@ -146,9 +157,9 @@ func (p *App) Run(args []string) {
 	defer p.cache.Close()
 	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
 	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
-	// p.files.Load([]string{"doc"})
+	p.files.Load([]string{"doc"})
 	// p.files.Load([]string{"doc/a.zip"})
-	p.files.Load(args)
+	// p.files.Load(args)
 
 	p.init()
 	p.Show()
@@ -192,26 +203,32 @@ func (p *App) createHelp() dialog.Dialog {
 	white := color.White
 	grey := color.Gray16{0x8888}
 	url, _ := url.Parse("https://github.com/xuender/comic")
-	three := 3
-	grid := container.New(layout.NewGridLayout(three),
-		canvas.NewText("Function", white), canvas.NewText("Key1", white), canvas.NewText("Key2", white),
-		canvas.NewText("Full Screen", white), canvas.NewText("F11", grey), canvas.NewText("", grey),
-		canvas.NewText("Refresh", white), canvas.NewText("*", grey), canvas.NewText("8", grey),
-		canvas.NewText("Zoom In", white), canvas.NewText("+", grey), canvas.NewText("=", grey),
-		canvas.NewText("Zoom Out", white), canvas.NewText("-", grey), canvas.NewText("", grey),
-		canvas.NewText("Page Down", white), canvas.NewText("PageDown", grey), canvas.NewText("Space", grey),
-		canvas.NewText("Page Up", white), canvas.NewText("PageUp", grey), canvas.NewText("", grey),
-		canvas.NewText("Max", white), canvas.NewText("/", grey), canvas.NewText("M", grey),
-		canvas.NewText("Width", white), canvas.NewText("W", grey), canvas.NewText("", grey),
-		canvas.NewText("Height", white), canvas.NewText("H", grey), canvas.NewText("", grey),
-		canvas.NewText("First Page", white), canvas.NewText("Home", grey), canvas.NewText("", grey),
-		canvas.NewText("Last Page", white), canvas.NewText("End", grey), canvas.NewText("", grey),
-		canvas.NewText("To Top", white), canvas.NewText("Up", grey), canvas.NewText("", grey),
-		canvas.NewText("To Bottom", white), canvas.NewText("Down", grey), canvas.NewText("", grey),
-		canvas.NewText("Help", white), canvas.NewText("F1", grey), canvas.NewText("F10", grey),
-		canvas.NewText("Quit", white), canvas.NewText("Q", grey), canvas.NewText("", grey),
-		canvas.NewText("", white), canvas.NewText("", grey), widget.NewHyperlink("xuender/comic", url),
-	)
+	four := 4
+
+	objects := []fyne.CanvasObject{
+		canvas.NewText("Function", white),
+		canvas.NewText("Key1", white),
+		canvas.NewText("Key2", white),
+		canvas.NewText("", white),
+	}
+
+	for _, command := range p.commands {
+		if command.Key1 == "" {
+			continue
+		}
+
+		objects = append(objects,
+			canvas.NewText(command.Help, white),
+			canvas.NewText(string(command.Key1), grey),
+			canvas.NewText(string(command.Key2), grey),
+			widget.NewIcon(command.Icon),
+		)
+	}
+
+	objects = append(objects, canvas.NewText("", white), canvas.NewText("", white), canvas.NewText("", white),
+		widget.NewHyperlink("xuender/comic", url))
+
+	grid := container.New(layout.NewGridLayout(four), objects...)
 
 	return dialog.NewCustom("Help", "Close", grid, p.main)
 }
