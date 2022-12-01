@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/disintegration/imaging"
 )
 
 type Mode int
@@ -91,13 +92,14 @@ func (p *App) createCommands() {
 		{Help: "Next Page", Call: p.next, Icon: theme.NavigateNextIcon(), Key1: fyne.KeyPageDown, Key2: fyne.KeySpace},
 		{Help: "Last Page", Call: p.last, Icon: theme.MediaSkipNextIcon(), Key1: fyne.KeyEnd},
 		{Help: "Separator"},
-		{Help: "Full screen", Call: p.fullScreen, Icon: theme.ViewFullScreenIcon(), Key1: fyne.KeyF11},
-		{Help: "Actual Size", Call: p.modeActual, Icon: theme.ViewRefreshIcon(), Key1: fyne.KeyAsterisk, Key2: fyne.Key8},
-		{Help: "Fit to window", Call: p.modeWindow, Icon: theme.ViewRestoreIcon(), Key1: fyne.KeySlash, Key2: fyne.KeyM},
+		{Help: "Full screen", Call: p.fullScreen, Icon: theme.ComputerIcon(), Key1: fyne.KeyF11},
+		{Help: "Actual Size", Call: p.modeActual, Icon: theme.ViewRestoreIcon(), Key1: fyne.KeyAsterisk, Key2: fyne.Key8},
+		{Help: "Fit to window", Call: p.modeWindow, Icon: theme.ViewFullScreenIcon(), Key1: fyne.KeySlash, Key2: fyne.KeyM},
 		{Help: "Fit to width", Call: p.modeWidth, Icon: theme.MoreHorizontalIcon(), Key1: fyne.KeyW},
 		{Help: "Fit to height", Call: p.modeHeight, Icon: theme.MoreVerticalIcon(), Key1: fyne.KeyH},
 		{Help: "Zoom In", Call: p.zoomIn, Icon: theme.ZoomInIcon(), Key1: fyne.KeyPlus, Key2: fyne.KeyEqual},
 		{Help: "Zoom Out", Call: p.zoomOut, Icon: theme.ZoomOutIcon(), Key1: fyne.KeyMinus},
+		{Help: "Rotate", Call: p.rotate, Icon: theme.ViewRefreshIcon(), Key1: fyne.KeyR},
 		{Help: "Close", Call: p.close, Key1: fyne.KeyEscape},
 		{Help: "To Top", Call: p.top, Key1: fyne.KeyUp},
 		{Help: "To Bottom", Call: p.bottom, Key1: fyne.KeyDown},
@@ -105,6 +107,17 @@ func (p *App) createCommands() {
 		{Help: "This Help", Call: p.showHelp, Icon: theme.HelpIcon(), Key1: fyne.KeyF1, Key2: fyne.KeyF10},
 		{Help: "Quit", Call: p.app.Quit, Key1: fyne.KeyQ},
 	}
+}
+
+func (p *App) rotate() {
+	log.Println("rotate")
+	width := p.img.Size().Width
+	height := p.img.Size().Height
+	size := fyne.NewSize(height, width)
+
+	p.img.Image = imaging.Rotate270(p.img.Image)
+	p.img.Resize(size)
+	p.img.SetMinSize(size)
 }
 
 func (p *App) createRadio() {
