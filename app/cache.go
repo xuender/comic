@@ -56,6 +56,10 @@ func (p *Cache) Put(path string, data []byte) {
 }
 
 func (p *Cache) Image(path string) *canvas.Image {
+	if path == _wait {
+		return ErrorImage()
+	}
+
 	data := p.Get(path)
 
 	if len(data) == 0 {

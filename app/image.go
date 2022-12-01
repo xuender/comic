@@ -111,3 +111,12 @@ func Debounced(fun func(), interval time.Duration) func() {
 		timer = time.AfterFunc(interval, fun)
 	}
 }
+
+func ReadPage(input <-chan string) string {
+	select {
+	case page := <-input:
+		return page
+	case <-time.After(time.Second):
+		return _wait
+	}
+}

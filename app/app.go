@@ -25,7 +25,8 @@ const (
 	ModeHeight
 )
 
-var modes = map[Mode]string{
+// nolint: gochecknoglobals
+var _modes = map[Mode]string{
 	ModeActual: "Actual",
 	ModeWindow: "Window",
 	ModeWidth:  "Width",
@@ -77,7 +78,8 @@ func NewApp(
 
 	app.border = border
 	app.help = app.createHelp()
-	app.show = Debounced(app.Show, time.Millisecond*300)
+	// nolint: gomnd
+	app.show = Debounced(app.Show, time.Millisecond*200)
 
 	return app
 }
@@ -148,7 +150,7 @@ func (p *App) createToolbar() *widget.Toolbar {
 
 func (p *App) Run(args []string) {
 	defer p.cache.Close()
-	p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
+	// p.files.Load([]string{"doc/logo.png", "doc/maskable_icon.png"})
 	// p.files.Load([]string{"doc/a.zip", "doc/logo.png", "doc/maskable_icon.png"})
 	p.files.Load([]string{"doc"})
 	// p.files.Load([]string{"doc/a.zip"})
@@ -161,11 +163,16 @@ func (p *App) Run(args []string) {
 }
 
 func (p *App) setKey() {
-	p.main.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
+	p.main.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
+		if event.Name == "" {
+			return
+		}
+
+		log.Println(event.Name)
+
 		for _, command := range p.commands {
-			if ke.Name == command.Key1 || ke.Name == command.Key2 {
+			if event.Name == command.Key1 || event.Name == command.Key2 {
 				command.Call()
-				log.Println(ke.Name)
 			}
 		}
 	})
@@ -212,7 +219,7 @@ func (p *App) createHelp() dialog.Dialog {
 	four := 4
 
 	objects := []fyne.CanvasObject{
-		canvas.NewText("Function", white),
+		canvas.NewText("", white),
 		canvas.NewText("Key1", white),
 		canvas.NewText("Key2", white),
 		canvas.NewText("", white),
@@ -247,6 +254,7 @@ func (p *App) reset() {
 		p.modeWidth()
 	case ModeHeight:
 		p.modeHeight()
+	case ModeActual:
 	default:
 	}
 }
@@ -300,6 +308,7 @@ func NoneImage() *canvas.Image {
 
 func (p *App) fullScreen() {
 	p.main.SetFullScreen(!p.main.FullScreen())
+
 	if p.main.FullScreen() {
 		p.border.Objects[1].Hide()
 		p.border.Objects[2].Hide()
@@ -343,7 +352,7 @@ func (p *App) zoomOut() {
 
 func (p *App) SetMode(mode Mode) {
 	p.mode = mode
-	p.radio.SetSelected(modes[p.mode])
+	p.radio.SetSelected(_modes[p.mode])
 }
 
 func (p *App) modeWindow() {
