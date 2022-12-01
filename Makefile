@@ -22,6 +22,13 @@ dev: tools
 
 build: tools
 	fyne package -os linux
+	mkdir -p dist_tmp
+	tar -xvf Comic.tar.xz -C dist_tmp
+	cp doc/Comic.desktop dist_tmp/usr/local/share/applications
+	rm -f Comic.tar.xz
+	tar -cJvf Comic.tar.xz -C dist_tmp Makefile usr
+	rm -rf dist_tmp
+
 
 lint:
 	golangci-lint run --timeout 60s --max-same-issues 50 ./...
